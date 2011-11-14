@@ -46,7 +46,6 @@ module Crewait
   module BaseMethods
     def next_insert_id
       connection = ActiveRecord::Base.connection
-      database, adapter = connection.current_database, connection.adapter_name
       sql = "SELECT nextval('#{self.table_name}_id_seq')"
       results = ActiveRecord::Base.connection.execute(sql)
       results[0]["nextval"].to_i
