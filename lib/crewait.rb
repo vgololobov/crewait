@@ -1,15 +1,13 @@
-# Crewait is a tool for ActiveRecord for mass-importing of data.
-# The idea is the you start a Crewait session, you use ActiveRecord::Base#crewait instead of #create, and then at some point you tell it to go!, which bulk inserts all those created records into SQL.
+#encoding: UTF-8
 module Crewait
 
   def self.start_waiting(config = {})
-    config(config)
-    # clear our all important hash caches
-    @@hash_of_hashes = {}
-    @@hash_of_next_inserts = {}
+    @@config ||= {}
+    @@config.merge!(config)
+    @@hash_of_hashes, @@hash_of_next_inserts = {},{}
   end
 
-  # add one crewait instance
+
   def self.for(model, hash)
     # if this class is new, add in the next_insert_value
     @@hash_of_next_inserts[model] ||= model.next_insert_id
@@ -17,37 +15,24 @@ module Crewait
     @@hash_of_hashes[model] ||= {}
     @@hash_of_hashes[model].respectively_insert(hash)
     hash[:id] = @@hash_of_next_inserts[model] + @@hash_of_hashes[model].inner_length - 1
-    # add dummy methods
+
     unless @@config[:no_methods]
       eigenclass = class << hash; self; end
-      eigenclass.class_eval {
-        hash.each do |key, value|
-          define_method(key) { value }
-          # define_method(key.to_s + '=') { set_value(fake_id, )}
-        end
-      }
+      eigenclass.class_eval { hash.each {|key, value| define_method(key) { value } }}
     end
     hash
   end
 
   def self.go!
-    @@hash_of_hashes.each do |key, hash|
-      hash.import_to_sql(key)
-    end
-    @@hash_of_hashes = {}
-    @@hash_of_next_inserts = {}
-  end
-
-  def self.config(hash)
-    @@config = {} unless defined?(@@config)
-    @@config.merge!(hash)
+    @@hash_of_hashes.each {|key, hash| hash.import_to_sql(key)}
+    @@hash_of_hashes,@@hash_of_next_inserts = {},{}
   end
 
   module BaseMethods
     def next_insert_id
       sql = "SELECT nextval('#{self.table_name}_id_seq')"
       results = ActiveRecord::Base.connection.execute(sql)
-      results[0]["nextval"].to_i
+      results[0]['nextval'].to_i
     end
 
     def crewait(hash)
@@ -57,44 +42,40 @@ module Crewait
 
   module HashMethods
     def import_to_sql(model_class)
-      if model_class.respond_to? :table_name
-        model_class = model_class.table_name
-      end
-      keys = self.keys
-      values = []
-      keys.each do |key|
-        values << (self[key].any? {|x| x != true} ? self[key] : self[key].collect {|x| 1})
-      end
+
+      model_class = model_class.table_name if model_class.respond_to? :table_name
+      keys, values = self.keys , []
+      keys.each  {|key| values << ( self[key].any?(&:!) ? self[key] : self[key].map{|x| 1} )}
+
       values = values.transpose
       sql = values.to_crewait_sql
 
   		while !sql.empty? do
-  			query_string = "insert into #{model_class} (#{keys.join(', ')}) values #{sql.shift}"
-  			while !sql.empty? && (query_string.length + sql.last.length < 999_999)  do
+  			query_string = "INSERT INTO #{model_class} (#{keys.join(', ')}) VALUES #{sql.shift}"
+  			while !sql.empty? && (query_string.length + sql.last.length < 999999)  do
   				query_string << ',' << sql.shift
   			end
         ActiveRecord::Base.connection.execute(query_string)
   		end
     end
-    # this was originally called "<<", but changed for namespacing
+
     def respectively_insert(other_hash)
+
       new_keys = other_hash.keys - self.keys
       length = new_keys.empty? ? 0 : self.inner_length
-      new_keys.each do |key|
-        self[key] = Array.new(length)
-      end
-      self.keys.each do |key|
-        self[key] << other_hash[key]
-      end
+
+      new_keys.each { |key| self[key] = Array.new(length) }
+      self.keys.each { |key|  self[key] << other_hash[key]}
     end
+
     def inner_length
-      !self.values.empty? ? self.values.first.length : 0
+      self.values.empty? ? 0 : self.values.first.length
     end
   end
 
   module ArrayMethods
     def to_crewait_sql
-    	self.collect {|x| "(#{x.collect{|x| x.nil? ? 'NULL' : "#{ActiveRecord::Base.sanitize(x)}"}.join(', ')})" }
+    	self.map {|x| "(#{x.map{|y| y.nil? ? 'NULL' : ActiveRecord::Base.sanitize(y)}.join(', ')})" }
     end
   end
 end
@@ -110,4 +91,3 @@ end
 class Array
   include Crewait::ArrayMethods
 end
-

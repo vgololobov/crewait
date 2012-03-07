@@ -1,5 +1,12 @@
 = Crewait
 
+ Crewait is a tool for ActiveRecord for mass-importing of data.
+
+ The idea is the you start a Crewait session, you use ActiveRecord::Base#crewait
+ instead of #create, and then at some point you tell it to go!,
+ which bulk inserts all those created records into SQL.
+
+
 Check out http://jonah.org/articles/crewait_go_.html for a guide to Crewait.
 
 = Heroes
@@ -9,7 +16,6 @@ Check out http://jonah.org/articles/crewait_go_.html for a guide to Crewait.
   alexkalish made it possible to have namespaced models!
   choffstein added Postgresql support!
   jakemack resolved some conflicts with Array#to_sql!
-
 == License
 
 Copyright (c) 2009-2010 Jonah Bloch-Johnson & Michael Glass
