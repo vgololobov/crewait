@@ -34,7 +34,7 @@ module Crewait
       table,database = self.table_name, ActiveRecord::Base.connection.current_database
       sql = "SELECT auto_increment FROM information_schema.tables WHERE table_name='#{table}' AND table_schema ='#{database}'"
       results = ActiveRecord::Base.connection.execute(sql)
-      results[0]['nextval'].to_i
+      results.fetch_hash['auto_increment'].to_i
     end
 
     def crewait(hash)
