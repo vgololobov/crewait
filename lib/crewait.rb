@@ -30,7 +30,9 @@ module Crewait
 
   module BaseMethods
     def next_insert_id
-      sql = "SELECT nextval('#{self.table_name}_id_seq')"
+      #todo add back adapter select
+      table,database = self.table_name, ActiveRecord::Base.connection.current_database
+      sql = "SELECT auto_increment FROM information_schema.tables WHERE table_name='#{table}' AND table_schema ='#{database}'"
       results = ActiveRecord::Base.connection.execute(sql)
       results[0]['nextval'].to_i
     end
